@@ -237,7 +237,7 @@ export const updateChatSessionTool = createTool({
   inputSchema: z.object({
     userId: z.string().describe('The Supabase auth user id for the current user'),
     flowStep: z
-      .enum(['glucose', 'foods', 'snacks', 'comments', 'timing_confirm', 'confirming', 'qa'])
+      .enum(['collecting', 'glucose', 'foods', 'snacks', 'comments', 'timing_confirm', 'confirming', 'qa'])
       .nullable()
       .optional(),
     pendingLog: z.record(z.string(), z.any()).nullable().optional(),

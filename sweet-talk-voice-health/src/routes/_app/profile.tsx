@@ -23,6 +23,8 @@ function ProfilePage() {
   const [unit, setUnit] = useState<"mmol/L" | "mg/dL">("mmol/L");
   const [freq, setFreq] = useState(3);
   const [times, setTimes] = useState<string[]>([]);
+  const [lowThreshold, setLowThreshold] = useState<number>(3.9);
+  const [highThreshold, setHighThreshold] = useState<number>(10.0);
 
   useEffect(() => {
     if (profile) {
@@ -31,6 +33,8 @@ function ProfilePage() {
       setUnit(profile.glucose_unit);
       setFreq(profile.recording_frequency);
       setTimes(profile.reminder_times || []);
+      setLowThreshold(profile.low_glucose_threshold ?? (profile.glucose_unit === "mg/dL" ? 70 : 3.9));
+      setHighThreshold(profile.high_glucose_threshold ?? (profile.glucose_unit === "mg/dL" ? 180 : 10.0));
     }
   }, [profile]);
 
@@ -44,9 +48,14 @@ function ProfilePage() {
   });
 
   const save = async () => {
-    const { error } = await supabase.from("profiles").update({
+    // low/high_glucose_threshold are new columns not yet in the generated Supabase types.
+    // Cast to any until `supabase gen types` is re-run after applying the migration.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const patch: any = {
       name, diabetes_type: type, glucose_unit: unit, recording_frequency: freq, reminder_times: times,
-    }).eq("user_id", user!.id);
+      low_glucose_threshold: lowThreshold, high_glucose_threshold: highThreshold,
+    };
+    const { error } = await supabase.from("profiles").update(patch).eq("user_id", user!.id);
     if (error) toast.error(error.message);
     else { toast.success("Saved"); qc.invalidateQueries({ queryKey: ["profile"] }); }
   };
@@ -107,6 +116,47 @@ function ProfilePage() {
             {times.map((t, i) => (
               <Input key={i} type="time" value={t} onChange={(e) => setTimes(times.map((x, j) => j === i ? e.target.value : x))} />
             ))}
+          </div>
+        </div>
+        <Button onClick={save}>Save changes</Button>
+      </Card>
+
+      <Card className="p-6 space-y-4">
+        <div>
+          <h2 className="font-display text-lg">Safety thresholds</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            You'll see a full-screen alert whenever a logged reading falls outside these limits.
+            Values are in <strong>{unit}</strong> — update them if you change units.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label>Low alert below ({unit})</Label>
+            <Input
+              type="number"
+              step={unit === "mmol/L" ? 0.1 : 1}
+              min={unit === "mmol/L" ? 1 : 20}
+              max={unit === "mmol/L" ? 5 : 90}
+              value={lowThreshold}
+              onChange={(e) => setLowThreshold(+e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Clinical default: {unit === "mmol/L" ? "3.9 mmol/L" : "70 mg/dL"}
+            </p>
+          </div>
+          <div>
+            <Label>High alert above ({unit})</Label>
+            <Input
+              type="number"
+              step={unit === "mmol/L" ? 0.1 : 1}
+              min={unit === "mmol/L" ? 6 : 110}
+              max={unit === "mmol/L" ? 30 : 540}
+              value={highThreshold}
+              onChange={(e) => setHighThreshold(+e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Clinical default: {unit === "mmol/L" ? "10.0 mmol/L" : "180 mg/dL"}
+            </p>
           </div>
         </div>
         <Button onClick={save}>Save changes</Button>

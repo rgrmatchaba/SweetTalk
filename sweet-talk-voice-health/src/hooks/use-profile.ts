@@ -15,6 +15,8 @@ export interface Profile {
   caregiver_email: string | null;
   caregiver_phone: string | null;
   caregiver_summary_time: string | null;
+  low_glucose_threshold: number | null;
+  high_glucose_threshold: number | null;
 }
 
 export function useProfile() {

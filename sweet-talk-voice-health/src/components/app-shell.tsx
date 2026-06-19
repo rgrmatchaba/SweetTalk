@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, History, LineChart, User, FileDown, LogOut, Mic, HeartHandshake } from "lucide-react";
+import { LayoutDashboard, History, LineChart, User, FileDown, LogOut, Mic, HeartHandshake, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/qa", label: "Q&A", icon: MessageSquare },
   { to: "/history", label: "History", icon: History },
   { to: "/analysis", label: "Analysis", icon: LineChart },
   { to: "/profile", label: "Profile", icon: User },

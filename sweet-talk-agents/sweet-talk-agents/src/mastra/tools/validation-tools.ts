@@ -1,8 +1,8 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { supabase } from '../lib/supabase';
 import { callAgent } from '../lib/agent-call';
 import { entrySchema, REQUIRED_ENTRY_FIELDS, type Entry } from './entry-schema';
+import { executeConfirmSave } from '../lib/logging-orchestration';
 
 // Re-export the session tools this agent needs — they live in shared-tools.ts
 // since other agents use them too.
@@ -83,12 +83,8 @@ export const triggerSaveTool = createTool({
     },
     context,
   ) => {
-    const result = await callAgent(
-      context.mastra,
-      'extraction-logging-agent',
-      `userId: ${userId}\nThe user has confirmed the following entries — save each of them now using saveGlucoseLogTool (computing entry_tag via getScheduledRemindersTool and the grace period rule). Confirmed entries (JSON): ${JSON.stringify(entries)}`,
-    );
-
+    const entry = entries[0] as Record<string, unknown>;
+    const result = await executeConfirmSave(userId, entry, context.mastra);
     return { result };
   },
 });

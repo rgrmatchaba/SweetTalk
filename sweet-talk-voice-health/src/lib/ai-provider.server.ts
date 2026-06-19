@@ -2,19 +2,32 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { LanguageModel } from "ai";
 
-function useOllama(): boolean {
-  const provider = (process.env.LLM_PROVIDER ?? "ollama").toLowerCase();
-  return provider === "ollama" || provider === "local";
+const DEFAULT_GROQ_MODEL = "deepseek-r1-distill-llama-70b";
+
+function getProvider(): string {
+  return (process.env.LLM_PROVIDER ?? "ollama").toLowerCase();
 }
 
-/** Ollama locally; Anthropic when LLM_PROVIDER=anthropic (deploy). */
+/** Ollama locally; Groq (free) or Anthropic when LLM_PROVIDER is set (deploy). */
 export function getChatModel(): LanguageModel {
-  if (useOllama()) {
+  const providerName = getProvider();
+
+  if (providerName === "ollama" || providerName === "local") {
     const baseURL = process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434/v1";
     const modelId = process.env.OLLAMA_MODEL ?? "llama3.2";
     const provider = createOpenAICompatible({
       name: "ollama",
       baseURL,
+    });
+    return provider(modelId);
+  }
+
+  if (providerName === "groq") {
+    const modelId = process.env.GROQ_MODEL ?? DEFAULT_GROQ_MODEL;
+    const provider = createOpenAICompatible({
+      name: "groq",
+      baseURL: "https://api.groq.com/openai/v1",
+      apiKey: process.env.GROQ_API_KEY,
     });
     return provider(modelId);
   }

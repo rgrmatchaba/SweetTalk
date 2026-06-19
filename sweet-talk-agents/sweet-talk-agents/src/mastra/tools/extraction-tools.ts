@@ -1,8 +1,19 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { supabase } from '../lib/supabase';
-import { callAgent } from '../lib/agent-call';
 import { entrySchema } from './entry-schema';
+import { getOrCreateChatSession } from './shared-tools';
+import {
+  buildCollectingResponse,
+  executeConfirmCancel,
+  executeConfirmSave,
+  formatConfirmCardWithMarker,
+  getMissingFields,
+  isCancelMessage,
+  isConfirmMessage,
+  mergePendingEntry,
+  persistSessionState,
+} from '../lib/logging-orchestration';
 
 // Re-export the profile tools this agent needs — they live in shared-tools.ts
 // since other agents use them too.
@@ -33,6 +44,8 @@ export const saveGlucoseLogTool = createTool({
   }),
   outputSchema: z.object({
     id: z.string(),
+    alert: z.enum(['low', 'high']).nullable().describe('Set when the reading breaches the user\'s safety thresholds'),
+    threshold_value: z.number().nullable().describe('The threshold that was breached'),
   }),
   execute: async ({ userId, glucose_value, glucose_unit, foods_eaten, snacks, comments, logged_at, entry_tag }) => {
     const { data, error } = await supabase
@@ -54,7 +67,30 @@ export const saveGlucoseLogTool = createTool({
       throw new Error(`Failed to save glucose log: ${error.message}`);
     }
 
-    return { id: data.id };
+    // Fetch the user's safety thresholds to check if this reading is dangerous.
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('low_glucose_threshold, high_glucose_threshold')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const defaultLow = glucose_unit === 'mg/dL' ? 70 : 3.9;
+    const defaultHigh = glucose_unit === 'mg/dL' ? 180 : 10.0;
+    const low = (profile as any)?.low_glucose_threshold ?? defaultLow;
+    const high = (profile as any)?.high_glucose_threshold ?? defaultHigh;
+
+    let alert: 'low' | 'high' | null = null;
+    let threshold_value: number | null = null;
+
+    if (glucose_value < low) {
+      alert = 'low';
+      threshold_value = low;
+    } else if (glucose_value > high) {
+      alert = 'high';
+      threshold_value = high;
+    }
+
+    return { id: data.id, alert, threshold_value };
   },
 });
 
@@ -77,12 +113,43 @@ export const handoffToValidationTool = createTool({
     response: z.string(),
   }),
   execute: async ({ userId, entries, message }, context) => {
-    const response = await callAgent(
-      context.mastra,
-      'validation-confirmation-agent',
-      `userId: ${userId}\noriginal message: ${message ?? ''}\nextracted entries (JSON): ${JSON.stringify(entries)}`,
-    );
+    const session = await getOrCreateChatSession(userId);
+    const pendingLog: Record<string, unknown> = (session.pending_log as Record<string, unknown>) ?? {};
+    const currentFlowStep: string | null = session.flow_step ?? null;
+    const originalMessage = message ?? '';
 
+    // Save / cancel during confirming — handled in code, not by the LLM
+    if (currentFlowStep === 'confirming') {
+      if (isConfirmMessage(originalMessage)) {
+        const response = await executeConfirmSave(userId, pendingLog, context.mastra);
+        return { response };
+      }
+      if (isCancelMessage(originalMessage)) {
+        const response = await executeConfirmCancel(userId);
+        return { response };
+      }
+      return { response: formatConfirmCardWithMarker(pendingLog) };
+    }
+
+    const newEntry: Record<string, unknown> = (entries[0] as Record<string, unknown>) ?? {};
+    const merged = mergePendingEntry(pendingLog, newEntry, originalMessage);
+
+    // Ensure glucose unit from profile when we have a value
+    if (merged.glucose_value != null && !merged.glucose_unit) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('glucose_unit')
+        .eq('user_id', userId)
+        .maybeSingle();
+      merged.glucose_unit = profile?.glucose_unit ?? 'mmol/L';
+    }
+
+    const missingFields = getMissingFields(merged);
+    const allComplete = missingFields.length === 0;
+
+    await persistSessionState(userId, merged, allComplete);
+
+    const response = buildCollectingResponse(merged, missingFields, allComplete);
     return { response };
   },
 });

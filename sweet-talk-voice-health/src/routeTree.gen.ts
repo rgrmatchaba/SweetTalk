@@ -13,6 +13,7 @@ import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteRouteImport } from './routes/_app/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppQaRouteImport } from './routes/_app/qa'
 import { Route as AppProfileRouteImport } from './routes/_app/profile'
 import { Route as AppHistoryRouteImport } from './routes/_app/history'
 import { Route as AppExportRouteImport } from './routes/_app/export'
@@ -38,6 +39,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AppQaRoute = AppQaRouteImport.update({
+  id: '/qa',
+  path: '/qa',
+  getParentRoute: () => AppRouteRoute,
 } as any)
 const AppProfileRoute = AppProfileRouteImport.update({
   id: '/profile',
@@ -80,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/export': typeof AppExportRoute
   '/history': typeof AppHistoryRoute
   '/profile': typeof AppProfileRoute
+  '/qa': typeof AppQaRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -91,6 +98,7 @@ export interface FileRoutesByTo {
   '/export': typeof AppExportRoute
   '/history': typeof AppHistoryRoute
   '/profile': typeof AppProfileRoute
+  '/qa': typeof AppQaRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -104,6 +112,7 @@ export interface FileRoutesById {
   '/_app/export': typeof AppExportRoute
   '/_app/history': typeof AppHistoryRoute
   '/_app/profile': typeof AppProfileRoute
+  '/_app/qa': typeof AppQaRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -117,6 +126,7 @@ export interface FileRouteTypes {
     | '/export'
     | '/history'
     | '/profile'
+    | '/qa'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -128,6 +138,7 @@ export interface FileRouteTypes {
     | '/export'
     | '/history'
     | '/profile'
+    | '/qa'
   id:
     | '__root__'
     | '/'
@@ -140,6 +151,7 @@ export interface FileRouteTypes {
     | '/_app/export'
     | '/_app/history'
     | '/_app/profile'
+    | '/_app/qa'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -178,6 +190,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_app/qa': {
+      id: '/_app/qa'
+      path: '/qa'
+      fullPath: '/qa'
+      preLoaderRoute: typeof AppQaRouteImport
+      parentRoute: typeof AppRouteRoute
     }
     '/_app/profile': {
       id: '/_app/profile'
@@ -231,6 +250,7 @@ interface AppRouteRouteChildren {
   AppExportRoute: typeof AppExportRoute
   AppHistoryRoute: typeof AppHistoryRoute
   AppProfileRoute: typeof AppProfileRoute
+  AppQaRoute: typeof AppQaRoute
 }
 
 const AppRouteRouteChildren: AppRouteRouteChildren = {
@@ -240,6 +260,7 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppExportRoute: AppExportRoute,
   AppHistoryRoute: AppHistoryRoute,
   AppProfileRoute: AppProfileRoute,
+  AppQaRoute: AppQaRoute,
 }
 
 const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(

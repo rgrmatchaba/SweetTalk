@@ -1,0 +1,38 @@
+# Render Blueprint for the Sweet Talk Mastra agents server.
+# Deploy: https://dashboard.render.com/blueprints -> "New Blueprint Instance"
+# pointed at this repo (root directory: sweet-talk-agents/sweet-talk-agents).
+#
+# Free tier notes:
+# - The service sleeps after ~15 min of inactivity and cold-starts (~30-60s)
+#   on the next request. Fine for a demo/glimpse, not for production traffic.
+# - Local disk (mastra.db, DuckDB observability store) is ephemeral on the
+#   free plan — data may reset on redeploys/restarts. Conversation memory
+#   that matters long-term should eventually move to a hosted DB.
+
+services:
+  - type: web
+    name: sweet-talk-agents
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: sweet-talk-agents/sweet-talk-agents
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /api
+    envVars:
+      - key: NODE_VERSION
+        value: 22.13.0
+      - key: LLM_PROVIDER
+        value: groq
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false

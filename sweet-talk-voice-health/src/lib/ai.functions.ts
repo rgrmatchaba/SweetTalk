@@ -3,6 +3,33 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { generateText } from "ai";
 import { z } from "zod";
 
+/**
+ * Strip reasoning preamble that the Gatekeeper model sometimes leaks before
+ * the actual user-facing response. Preambles look like:
+ *   "Now I'll extract the entry and hand off to validation:Got it — 5.6..."
+ *   "Since hasActiveLog is true, I must use LOGGING intent:What did you eat..."
+ * Strategy: find the last sentence boundary (": " + capital, or "\n" + capital)
+ * that looks like a transition from internal reasoning to user speech.
+ */
+function stripAgentPreamble(text: string): string {
+  // Known preamble trigger phrases — if the text starts with any of these,
+  // find where the real response begins (after the colon or newline).
+  const preamblePatterns = [
+    /^(?:Now I'?ll|I'?ll|I need to|I see|I'm going|Let me|Since |Based on |The user|This message|Looking at)[^]*?:\s*/i,
+    /^[^\n]*?\bhand off to validation:\s*/i,
+    /^[^\n]*?\bLOGGING intent[^:]*:\s*/i,
+  ];
+
+  for (const pattern of preamblePatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const stripped = text.slice(match[0].length).trim();
+      if (stripped.length > 0) return stripped;
+    }
+  }
+  return text;
+}
+
 const chatMessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
   content: z.string().min(1).max(8000),
@@ -12,6 +39,9 @@ function aiUnavailableHint(): string {
   const provider = (process.env.LLM_PROVIDER ?? "ollama").toLowerCase();
   if (provider === "anthropic") {
     return "Check ANTHROPIC_API_KEY is set.";
+  }
+  if (provider === "groq") {
+    return "Check GROQ_API_KEY is set (get one free at https://console.groq.com/keys).";
   }
   return `Start Ollama and run: ollama pull ${process.env.OLLAMA_MODEL ?? "llama3.2"}`;
 }
@@ -87,6 +117,51 @@ export const sweetTalkAgentChat = createServerFn({ method: "POST" })
         throw new Error(`Mastra agent request failed (${res.status}): ${errText.slice(0, 300)}`);
       }
       const json = await res.json();
+      const raw: string | undefined = json?.text ?? json?.object?.text ?? json?.result?.text;
+      if (typeof raw !== "string") {
+        throw new Error("Mastra agent returned an unexpected response shape");
+      }
+      // Strip any reasoning preamble the Gatekeeper leaks before the real response.
+      const text = stripAgentPreamble(raw);
+      return { text };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Agent request failed";
+      throw new Error(`${msg}. Is the Mastra agents server running (npm run dev in sweet-talk-agents/sweet-talk-agents)?`);
+    }
+  });
+
+export const sweetTalkQAChat = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({
+      message: z.string().min(1).max(8000),
+      threadId: z.string().optional(),
+    }).parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    const baseUrl = process.env.MASTRA_API_URL ?? "http://localhost:4111";
+    const userId = context.userId;
+    const prompt = `userId: ${userId}\n${data.message}`;
+    try {
+      const res = await fetch(`${baseUrl}/api/agents/qa-agent/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-mastra-dev-playground": "true",
+        },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: prompt }],
+          memory: {
+            resource: userId,
+            thread: data.threadId ?? `qa-${userId}`,
+          },
+        }),
+      });
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        throw new Error(`Mastra agent request failed (${res.status}): ${errText.slice(0, 300)}`);
+      }
+      const json = await res.json();
       const text: string | undefined = json?.text ?? json?.object?.text ?? json?.result?.text;
       if (typeof text !== "string") {
         throw new Error("Mastra agent returned an unexpected response shape");
@@ -96,6 +171,33 @@ export const sweetTalkAgentChat = createServerFn({ method: "POST" })
       const msg = e instanceof Error ? e.message : "Agent request failed";
       throw new Error(`${msg}. Is the Mastra agents server running (npm run dev in sweet-talk-agents/sweet-talk-agents)?`);
     }
+  });
+
+export const clearChatSession = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const userId = context.userId;
+    const todayDate = new Date().toLocaleDateString("en-CA");
+    const threadId = `chat-${userId}`;
+    const baseUrl = process.env.MASTRA_API_URL ?? "http://localhost:4111";
+
+    const { error } = await context.supabase
+      .from("chat_sessions")
+      .delete()
+      .eq("user_id", userId)
+      .eq("session_date", todayDate);
+
+    if (error) throw new Error(error.message);
+
+    await fetch(
+      `${baseUrl}/api/memory/threads/${encodeURIComponent(threadId)}?agentId=gatekeeper-agent&resourceId=${encodeURIComponent(userId)}`,
+      {
+        method: "DELETE",
+        headers: { "x-mastra-dev-playground": "true" },
+      },
+    ).catch(() => {});
+
+    return { ok: true as const };
   });
 
 export const transcribeAudio = createServerFn({ method: "POST" })

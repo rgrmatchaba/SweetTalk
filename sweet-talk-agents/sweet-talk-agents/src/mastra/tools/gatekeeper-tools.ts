@@ -2,6 +2,14 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { supabase } from '../lib/supabase';
 import { callAgent } from '../lib/agent-call';
+import { getOrCreateChatSession } from './shared-tools';
+import {
+  executeConfirmCancel,
+  executeConfirmSave,
+  formatConfirmCardWithMarker,
+  isCancelMessage,
+  isConfirmMessage,
+} from '../lib/logging-orchestration';
 
 // getUserProfileTool and getActiveLogTool now live in shared-tools.ts since
 // the Extraction and Validation agents need them too. Re-exported here so
@@ -125,6 +133,38 @@ export const handoffToAgentTool = createTool({
     note: z.string(),
   }),
   execute: async ({ userId, intent, message, reason }, context) => {
+    const session = await getOrCreateChatSession(userId);
+    const pendingLog = (session.pending_log as Record<string, unknown>) ?? {};
+    const flowStep = session.flow_step ?? null;
+
+    // Deterministic: confirming + save/cancel — never delegate intent to the Gatekeeper LLM
+    if (flowStep === 'confirming') {
+      if (isConfirmMessage(message)) {
+        const response = await executeConfirmSave(userId, pendingLog, context.mastra);
+        return {
+          intent: 'CORRECTION',
+          routedTo: 'orchestrator',
+          response,
+          note: 'Confirmed save handled deterministically.',
+        };
+      }
+      if (isCancelMessage(message)) {
+        const response = await executeConfirmCancel(userId);
+        return {
+          intent: 'CORRECTION',
+          routedTo: 'orchestrator',
+          response,
+          note: 'Cancel handled deterministically.',
+        };
+      }
+      return {
+        intent: 'CORRECTION',
+        routedTo: 'orchestrator',
+        response: formatConfirmCardWithMarker(pendingLog),
+        note: 'Re-showing confirmation card.',
+      };
+    }
+
     const agentIdMap: Record<string, string> = {
       LOGGING: 'extraction-logging-agent',
       CORRECTION: 'validation-confirmation-agent',
@@ -135,7 +175,6 @@ export const handoffToAgentTool = createTool({
     const routedTo = agentIdMap[intent];
 
     if (!routedTo) {
-      // EXPORT and SETTINGS flows aren't built yet.
       return {
         intent,
         routedTo: intent === 'EXPORT' ? 'export-flow' : 'settings-flow',
@@ -144,11 +183,26 @@ export const handoffToAgentTool = createTool({
       };
     }
 
-    const response = await callAgent(
-      context.mastra,
-      routedTo,
-      `userId: ${userId}\nmessage: ${message}`,
-    );
+    let prompt: string;
+
+    if (routedTo === 'extraction-logging-agent') {
+      prompt = `userId: ${userId}
+flowStep: ${flowStep ?? 'null'}
+pendingLog: ${JSON.stringify(pendingLog)}
+message: ${message}
+
+Extract ONLY fields explicitly present in message. Leave unmentioned fields null.
+Then call handoffToValidationTool with the extracted entry and relay its response exactly.`;
+    } else if (routedTo === 'validation-confirmation-agent') {
+      prompt = `userId: ${userId}
+flowStep: ${flowStep ?? 'null'}
+pendingLog: ${JSON.stringify(pendingLog)}
+message: ${message}`;
+    } else {
+      prompt = `userId: ${userId}\nmessage: ${message}`;
+    }
+
+    const response = await callAgent(context.mastra, routedTo, prompt);
 
     return {
       intent,

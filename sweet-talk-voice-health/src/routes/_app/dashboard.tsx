@@ -1,25 +1,28 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useProfile } from "@/hooks/use-profile";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-import { VoiceAgent } from "@/components/voice-agent";
+// import { VoiceAgent } from "@/components/voice-agent";
 import { ChatAgent } from "@/components/chat-agent";
+import { GlucoseAlertModal } from "@/components/glucose-alert-modal";
 import { Bell, Check } from "lucide-react";
 
 export const Route = createFileRoute("/_app/dashboard")({ component: Dashboard });
 
-type AgentTab = "voice" | "chat";
+// type AgentTab = "voice" | "chat";
 
 function Dashboard() {
   const { user } = useAuth();
   const { data: profile } = useProfile();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<AgentTab>("voice");
+  // const [tab, setTab] = useState<AgentTab>("voice");
+  const [glucoseAlert, setGlucoseAlert] = useState<{ reading: number; type: "low" | "high" } | null>(null);
+  const lastLogCountRef = useRef<number | null>(null);
 
   const { data: notifications } = useQuery({
     queryKey: ["notifications", user?.id],
@@ -59,6 +62,26 @@ function Dashboard() {
     },
   });
 
+  // Fire alert whenever a NEW reading appears (agent invalidates this query after saving).
+  useEffect(() => {
+    if (!logs || !profile) return;
+    const prev = lastLogCountRef.current;
+    const curr = logs.length;
+    lastLogCountRef.current = curr;
+
+    // Only check on an increase (new entry was added), not on initial load.
+    if (prev === null || curr <= prev) return;
+
+    const newest = logs[logs.length - 1];
+    if (!newest) return;
+    const val = Number(newest.glucose_value);
+    const low = profile.low_glucose_threshold ?? (profile.glucose_unit === "mg/dL" ? 70 : 3.9);
+    const high = profile.high_glucose_threshold ?? (profile.glucose_unit === "mg/dL" ? 180 : 10.0);
+
+    if (val < low) setGlucoseAlert({ reading: val, type: "low" });
+    else if (val > high) setGlucoseAlert({ reading: val, type: "high" });
+  }, [logs, profile]);
+
   const chartData = (() => {
     const buckets: Record<string, { sum: number; n: number }> = {};
     const days: string[] = [];
@@ -83,6 +106,15 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {glucoseAlert && (
+        <GlucoseAlertModal
+          reading={glucoseAlert.reading}
+          unit={profile?.glucose_unit ?? "mmol/L"}
+          type={glucoseAlert.type}
+          onDismiss={() => setGlucoseAlert(null)}
+        />
+      )}
+
       <div>
         <h1 className="font-display text-3xl">Hi {profile?.name || "there"}</h1>
         <p className="text-muted-foreground">Your glucose at a glance.</p>
@@ -140,32 +172,16 @@ function Dashboard() {
         </div>
       </Card>
 
-      {/* Agent section with Voice / Chat toggle */}
+      {/* Chat agent — voice tab hidden while we focus on chat */}
       <div>
+        {/* Voice / Chat toggle — re-enable when voice is ready
         <div className="flex gap-1 p-1 bg-muted rounded-xl w-fit mb-4">
-          <button
-            onClick={() => setTab("voice")}
-            className={`px-5 py-1.5 rounded-lg text-sm font-medium transition-all ${
-              tab === "voice"
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Voice
-          </button>
-          <button
-            onClick={() => setTab("chat")}
-            className={`px-5 py-1.5 rounded-lg text-sm font-medium transition-all ${
-              tab === "chat"
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Chat
-          </button>
+          <button onClick={() => setTab("voice")} ...>Voice</button>
+          <button onClick={() => setTab("chat")} ...>Chat</button>
         </div>
-
         {tab === "voice" ? <VoiceAgent /> : <ChatAgent />}
+        */}
+        <ChatAgent />
       </div>
     </div>
   );
