@@ -1,5 +1,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
+import { toGlucoseLogInsert, toGlucoseLogUpdate } from '../lib/glucose-log-row';
 import { supabase } from '../lib/supabase';
 import { entrySchema } from './entry-schema';
 import { getOrCreateChatSession } from './shared-tools';
@@ -13,6 +14,8 @@ import {
   isConfirmMessage,
   mergePendingEntry,
   persistSessionState,
+  resolveLoggedAt,
+  truncateAgentMessage,
 } from '../lib/logging-orchestration';
 
 // Re-export the profile tools this agent needs — they live in shared-tools.ts
@@ -50,16 +53,18 @@ export const saveGlucoseLogTool = createTool({
   execute: async ({ userId, glucose_value, glucose_unit, foods_eaten, snacks, comments, logged_at, entry_tag }) => {
     const { data, error } = await supabase
       .from('glucose_logs')
-      .insert({
-        user_id: userId,
-        glucose_value,
-        glucose_unit,
-        foods_eaten,
-        snacks,
-        comments,
-        logged_at,
-        entry_tag,
-      })
+      .insert(
+        toGlucoseLogInsert({
+          user_id: userId,
+          glucose_value,
+          glucose_unit,
+          foods_eaten,
+          snacks,
+          comments,
+          logged_at,
+          entry_tag,
+        }),
+      )
       .select('id')
       .single();
 
@@ -116,7 +121,7 @@ export const handoffToValidationTool = createTool({
     const session = await getOrCreateChatSession(userId);
     const pendingLog: Record<string, unknown> = (session.pending_log as Record<string, unknown>) ?? {};
     const currentFlowStep: string | null = session.flow_step ?? null;
-    const originalMessage = message ?? '';
+    const originalMessage = truncateAgentMessage(message ?? '');
 
     // Save / cancel during confirming — handled in code, not by the LLM
     if (currentFlowStep === 'confirming') {
@@ -133,6 +138,19 @@ export const handoffToValidationTool = createTool({
 
     const newEntry: Record<string, unknown> = (entries[0] as Record<string, unknown>) ?? {};
     const merged = mergePendingEntry(pendingLog, newEntry, originalMessage);
+
+    // Readings must have already happened — reject future dates ("tomorrow at 8am")
+    // and re-ask for the time instead of letting them reach the confirm card.
+    if (typeof merged.logged_at === 'string' && merged.logged_at.length > 0) {
+      if (resolveLoggedAt(merged.logged_at).explicitFuture) {
+        delete merged.logged_at;
+        await persistSessionState(userId, merged, false);
+        return {
+          response:
+            'I can only log readings that have already happened — when did you actually take this reading?',
+        };
+      }
+    }
 
     // Ensure glucose unit from profile when we have a value
     if (merged.glucose_value != null && !merged.glucose_unit) {
@@ -176,7 +194,9 @@ export const updateGlucoseLogTool = createTool({
     id: z.string(),
   }),
   execute: async ({ userId, logId, ...fields }) => {
-    const updates = Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined));
+    const updates = toGlucoseLogUpdate(
+      Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined)),
+    );
 
     if (Object.keys(updates).length === 0) {
       throw new Error('No fields provided to update');

@@ -79,17 +79,27 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Sweet Talk — Voice glucose logging" },
-      { name: "description", content: "Log and analyse your glucose readings by voice. A warm, clinical companion for diabetics." },
+      { title: "Sweet Talk — The sugar diary that talks like a person" },
+      { name: "description", content: "Log and analyse your glucose readings in a quick chat. A warm, clinical companion for diabetics." },
+      { name: "theme-color", content: "#0C231B" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+      { name: "apple-mobile-web-app-title", content: "Sweet Talk" },
+      { name: "application-name", content: "Sweet Talk" },
       { property: "og:title", content: "Sweet Talk" },
-      { property: "og:description", content: "Voice-powered glucose tracking for diabetics." },
+      { property: "og:description", content: "Chat-powered glucose tracking for diabetics." },
       { property: "og:type", content: "website" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "icon", type: "image/png", sizes: "32x32", href: "/favicon-32.png" },
+      { rel: "icon", type: "image/png", sizes: "192x192", href: "/icon-192.png" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&display=swap" },
+      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&display=swap" },
     ],
   }),
   shellComponent: RootShell,
@@ -114,6 +124,20 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  // Register the PWA service worker in production only. Kept out of dev so it
+  // never interferes with HMR or caches stale bundles while developing.
+  useEffect(() => {
+    if (
+      import.meta.env.PROD &&
+      typeof navigator !== "undefined" &&
+      "serviceWorker" in navigator
+    ) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {
+        /* registration is best-effort; the app works without it */
+      });
+    }
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
-import { Send, Loader2, Trash2, Check, X } from "lucide-react";
+import { motion } from "framer-motion";
+import { Send, Loader2, Trash2, Check, X, ClipboardCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,10 +14,120 @@ import { toast } from "sonner";
 
 const CONFIRM_MARKER = "[CONFIRM_CARD]";
 
-function parseConfirmCard(content: string): { text: string; hasCard: boolean } {
+interface ConfirmCardData {
+  title: string;
+  rows: [string, string][];
+}
+
+interface ParsedBotMessage {
+  text: string;
+  hasCard: boolean;
+  card: ConfirmCardData | null;
+}
+
+/**
+ * Confirm-card messages arrive as text between `---` fences followed by the
+ * marker. Parse them into title + rows for a styled card; fall back to the
+ * raw text if the shape is unexpected.
+ */
+function parseConfirmCard(content: string): ParsedBotMessage {
   const idx = content.indexOf(CONFIRM_MARKER);
-  if (idx === -1) return { text: content, hasCard: false };
-  return { text: content.slice(0, idx).trim(), hasCard: true };
+  if (idx === -1) return { text: content, hasCard: false, card: null };
+
+  const before = content.slice(0, idx).trim();
+  const start = before.indexOf("---");
+  const end = before.lastIndexOf("---");
+  if (start === -1 || end <= start) return { text: before, hasCard: true, card: null };
+
+  const lines = before
+    .slice(start + 3, end)
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  let title = "Reading";
+  const rows: [string, string][] = [];
+  for (const line of lines) {
+    const row = line.match(/^-\s*([^:]+):\s*(.*)$/);
+    if (row) rows.push([row[1], row[2]]);
+    else title = line;
+  }
+
+  return { text: before.slice(0, start).trim(), hasCard: true, card: { title, rows } };
+}
+
+/* Landing page palette: ink #0C231B · moss #143528 · honey #E8A33D · mist #A8C0B5 */
+function ConfirmCard({
+  card,
+  acted,
+  sending,
+  onConfirm,
+}: {
+  card: ConfirmCardData;
+  acted: boolean;
+  sending: boolean;
+  onConfirm: (action: "save" | "cancel") => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      className="w-full max-w-sm overflow-hidden rounded-2xl border border-[#E8A33D]/30 bg-[#143528] shadow-[0_20px_40px_-20px_rgba(12,35,27,0.6)]"
+    >
+      <div className="flex items-center gap-2 border-b border-white/10 bg-[#0C231B] px-4 py-3">
+        <div className="flex size-7 items-center justify-center rounded-lg bg-[#E8A33D]/15">
+          <ClipboardCheck className="size-4 text-[#E8A33D]" />
+        </div>
+        <p className="text-sm font-semibold capitalize text-[#E8A33D]">{card.title}</p>
+      </div>
+
+      <div className="px-4 py-1.5">
+        {card.rows.map(([label, value]) => (
+          <div
+            key={label}
+            className="flex items-baseline justify-between gap-4 border-b border-white/5 py-2 text-sm last:border-0"
+          >
+            <span className="shrink-0 text-[#A8C0B5]">{label}</span>
+            <span
+              className={
+                label.toLowerCase() === "glucose"
+                  ? "text-right font-bold text-[#E8A33D]"
+                  : "text-right font-medium text-[#EDE7D8]"
+              }
+            >
+              {value}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {acted ? (
+        <p className="flex items-center gap-1.5 px-4 pb-3.5 pt-1 text-xs font-medium text-[#8BD8A8]">
+          <Check className="size-3.5" strokeWidth={3} /> Responded
+        </p>
+      ) : (
+        <div className="flex gap-2 px-4 pb-4 pt-1.5">
+          <button
+            onClick={() => onConfirm("save")}
+            disabled={sending}
+            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-[#E8A33D] px-4 py-2 text-sm font-bold text-[#0C231B] transition hover:bg-[#F2B658] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Check className="size-3.5" strokeWidth={3} />
+            Save
+          </button>
+          <button
+            onClick={() => onConfirm("cancel")}
+            disabled={sending}
+            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-[#A8C0B5] transition hover:border-white/30 hover:bg-white/5 hover:text-[#F6F3EC] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <X className="size-3.5" />
+            Cancel
+          </button>
+        </div>
+      )}
+    </motion.div>
+  );
 }
 
 interface ChatMessage {
@@ -221,39 +332,38 @@ export function ChatAgent() {
             );
           }
 
-          const { text, hasCard } = parseConfirmCard(m.content);
+          const { text, hasCard, card } = parseConfirmCard(m.content);
           const acted = actedCards.has(m.id);
 
           return (
             <div key={m.id} className="flex justify-start">
               <div className="max-w-[80%] space-y-2">
-                <div className="rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap bg-muted">
-                  {text}
-                </div>
-                {hasCard && !acted && (
+                {text.length > 0 && (
+                  <div className="rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap bg-muted">
+                    {text}
+                  </div>
+                )}
+                {hasCard && card && (
+                  <ConfirmCard
+                    card={card}
+                    acted={acted}
+                    sending={sending}
+                    onConfirm={(action) => handleConfirm(m.id, action)}
+                  />
+                )}
+                {hasCard && !card && !acted && (
                   <div className="flex gap-2 pl-1">
-                    <Button
-                      size="sm"
-                      onClick={() => handleConfirm(m.id, "save")}
-                      disabled={sending}
-                      className="gap-1.5"
-                    >
+                    <Button size="sm" onClick={() => handleConfirm(m.id, "save")} disabled={sending} className="gap-1.5">
                       <Check className="size-3.5" />
                       Save
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleConfirm(m.id, "cancel")}
-                      disabled={sending}
-                      className="gap-1.5"
-                    >
+                    <Button size="sm" variant="outline" onClick={() => handleConfirm(m.id, "cancel")} disabled={sending} className="gap-1.5">
                       <X className="size-3.5" />
                       Cancel
                     </Button>
                   </div>
                 )}
-                {hasCard && acted && (
+                {hasCard && !card && acted && (
                   <p className="pl-1 text-xs text-muted-foreground">Responded ✓</p>
                 )}
               </div>

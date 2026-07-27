@@ -5,9 +5,7 @@ import { LibSQLStore } from '@mastra/libsql';
 import { DuckDBStore } from "@mastra/duckdb";
 import { MastraCompositeStore } from '@mastra/core/storage';
 import { Observability, MastraStorageExporter, MastraPlatformExporter, SensitiveDataFilter } from '@mastra/observability';
-import { weatherWorkflow } from './workflows/weather-workflow';
 import { caregiverDispatchWorkflow } from './workflows/caregiver-dispatch-workflow';
-import { weatherAgent } from './agents/weather-agent';
 import { gatekeeperAgent } from './agents/gatekeeper-agent';
 import { extractionLoggingAgent } from './agents/extraction-logging-agent';
 import { validationConfirmationAgent } from './agents/validation-confirmation-agent';
@@ -19,9 +17,8 @@ import { caregiverAgent } from './agents/caregiver-agent';
 import { toolCallAppropriatenessScorer, completenessScorer, translationScorer } from './scorers/weather-scorer';
 
 export const mastra = new Mastra({
-  workflows: { weatherWorkflow, caregiverDispatchWorkflow },
+  workflows: { caregiverDispatchWorkflow },
   agents: {
-    weatherAgent,
     gatekeeperAgent,
     extractionLoggingAgent,
     validationConfirmationAgent,

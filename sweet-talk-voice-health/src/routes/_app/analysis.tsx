@@ -24,6 +24,7 @@ function Analysis() {
   const [from, setFrom] = useState(weekAgo);
   const [to, setTo] = useState(today);
   const [narrative, setNarrative] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const { data: logs } = useQuery({
@@ -41,15 +42,18 @@ function Analysis() {
   });
 
   const runAnalysis = async () => {
-    if (!logs) return;
+    if (!logs?.length) return;
     setLoading(true);
+    setError(null);
+    setNarrative(null);
     try {
-      const res = await analyse({ data: { logs: logs.map((l) => ({
-        glucose_value: Number(l.glucose_value), glucose_unit: l.glucose_unit,
-        foods_eaten: l.foods_eaten, comments: l.comments, logged_at: l.logged_at,
-      })), diabetes_type: profile?.diabetes_type || undefined } });
+      const res = await analyse({ data: { from, to } });
       setNarrative(res.narrative);
-    } finally { setLoading(false); }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Analysis failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const chartData = logs?.map((l) => ({
@@ -71,20 +75,47 @@ function Analysis() {
         </div>
       </Card>
 
-      <Card className="p-6">
+      <Card className="p-4 sm:p-6">
         <h2 className="font-display text-lg mb-4">Readings ({profile?.glucose_unit})</h2>
-        <div className="h-64">
+        <div className="h-52 sm:h-64">
           <ResponsiveContainer>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-              <XAxis dataKey="time" tick={{ fontSize: 10 }} />
-              <YAxis />
+            <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.3} vertical={false} />
+              <XAxis
+                dataKey="time"
+                tick={{ fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+                tickMargin={6}
+                minTickGap={32}
+                interval="preserveStartEnd"
+              />
+              <YAxis
+                width={30}
+                tick={{ fontSize: 11 }}
+                tickLine={false}
+                axisLine={false}
+                domain={["auto", "auto"]}
+              />
               <Tooltip />
-              <Line type="monotone" dataKey="value" stroke="var(--color-primary)" strokeWidth={2} dot={{ r: 3 }} />
+              <Line
+                type="monotone"
+                dataKey="value"
+                stroke="var(--color-primary)"
+                strokeWidth={2}
+                dot={{ r: 2.5 }}
+                activeDot={{ r: 5 }}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
       </Card>
+
+      {error && (
+        <Card className="p-6 border-destructive/50 bg-destructive/5">
+          <p className="text-sm text-destructive">{error}</p>
+        </Card>
+      )}
 
       {narrative && (
         <Card className="p-6">

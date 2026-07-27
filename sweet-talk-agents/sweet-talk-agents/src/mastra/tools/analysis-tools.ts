@@ -1,5 +1,6 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
+import { GLUCOSE_LOG_SELECT } from '../lib/glucose-log-row';
 import { supabase } from '../lib/supabase';
 
 /**
@@ -35,7 +36,7 @@ export const getLogsForPeriodTool = createTool({
     const [logsResult, profileResult] = await Promise.all([
       supabase
         .from('glucose_logs')
-        .select('glucose_value, glucose_unit, foods_eaten, snacks, comments, logged_at, entry_tag')
+        .select(GLUCOSE_LOG_SELECT)
         .eq('user_id', userId)
         .gte('logged_at', `${startDate}T00:00:00`)
         .lte('logged_at', `${endDate}T23:59:59`)
@@ -52,7 +53,7 @@ export const getLogsForPeriodTool = createTool({
     const glucoseUnit = profileResult.data?.glucose_unit ?? logs[0]?.glucose_unit ?? 'mmol/L';
 
     return {
-      logs,
+      logs: logs.map((row) => ({ ...row, snacks: null })),
       daysCovered: distinctDays.size,
       glucoseUnit,
     };

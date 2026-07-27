@@ -19,6 +19,15 @@ const DEFAULT_ANTHROPIC_MODEL = 'anthropic/claude-haiku-4-5-20251001';
 const DEFAULT_GROQ_MODEL = 'llama-3.3-70b-versatile';
 const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash';
 
+// Pin Anthropic's versioned base URL at module load (before any provider is
+// constructed). @mastra/core's bare-string Anthropic path can otherwise resolve
+// a base URL without `/v1`, making it POST to https://api.anthropic.com/messages
+// and 404 on every call. Setting it here (or via the ANTHROPIC_BASE_URL env in
+// .env / render.yaml) fixes it. Env value wins if already set.
+if (!process.env.ANTHROPIC_BASE_URL) {
+  process.env.ANTHROPIC_BASE_URL = 'https://api.anthropic.com/v1';
+}
+
 function getProvider(): string {
   return (process.env.LLM_PROVIDER ?? 'ollama').toLowerCase();
 }
@@ -58,6 +67,7 @@ export function getDefaultModel(): MastraModelConfig {
   }
 
   // Anthropic — best instruction following, paid. Set ANTHROPIC_API_KEY.
+  // (Base URL pinned at module load above.)
   if (provider === 'anthropic') {
     return process.env.ANTHROPIC_MODEL ?? DEFAULT_ANTHROPIC_MODEL;
   }

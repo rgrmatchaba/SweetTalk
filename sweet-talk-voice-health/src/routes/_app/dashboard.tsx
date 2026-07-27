@@ -24,18 +24,21 @@ function Dashboard() {
   const [glucoseAlert, setGlucoseAlert] = useState<{ reading: number; type: "low" | "high" } | null>(null);
   const lastLogCountRef = useRef<number | null>(null);
 
+  // Panel shows only unread notifications, at most 3; `count` still reflects
+  // the total unread so the badge stays accurate when more are waiting.
   const { data: notifications } = useQuery({
     queryKey: ["notifications", user?.id],
     enabled: !!user,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error, count } = await supabase
         .from("notifications")
-        .select("id, type, message, read, created_at")
+        .select("id, type, message, created_at", { count: "exact" })
         .eq("user_id", user!.id)
+        .eq("read", false)
         .order("created_at", { ascending: false })
-        .limit(10);
+        .limit(3);
       if (error) throw error;
-      return data;
+      return { items: data, unreadCount: count ?? data.length };
     },
   });
 
@@ -43,8 +46,6 @@ function Dashboard() {
     await supabase.from("notifications").update({ read: true }).eq("id", id);
     qc.invalidateQueries({ queryKey: ["notifications", user?.id] });
   };
-
-  const unread = notifications?.filter((n) => !n.read) ?? [];
 
   const { data: logs } = useQuery({
     queryKey: ["dashboard-logs", user?.id],
@@ -120,24 +121,20 @@ function Dashboard() {
         <p className="text-muted-foreground">Your glucose at a glance.</p>
       </div>
 
-      {notifications && notifications.length > 0 && (
+      {notifications && notifications.items.length > 0 && (
         <Card className="p-6 space-y-3">
           <h2 className="font-display text-lg flex items-center gap-2">
             <Bell className="size-4" />
             Notifications
-            {unread.length > 0 && (
-              <span className="text-xs font-normal rounded-full bg-primary text-primary-foreground px-2 py-0.5">
-                {unread.length} new
-              </span>
-            )}
+            <span className="text-xs font-normal rounded-full bg-primary text-primary-foreground px-2 py-0.5">
+              {notifications.unreadCount} new
+            </span>
           </h2>
           <div className="space-y-2">
-            {notifications.map((n) => (
+            {notifications.items.map((n) => (
               <div
                 key={n.id}
-                className={`flex items-start justify-between gap-3 p-3 rounded-lg border text-sm ${
-                  n.read ? "text-muted-foreground" : "bg-muted"
-                }`}
+                className="flex items-start justify-between gap-3 p-3 rounded-lg border text-sm bg-muted"
               >
                 <div>
                   <p>{n.message}</p>
@@ -145,28 +142,33 @@ function Dashboard() {
                     {new Date(n.created_at).toLocaleString()}
                   </p>
                 </div>
-                {!n.read && (
-                  <Button size="icon" variant="ghost" onClick={() => markRead(n.id)} title="Mark as read">
-                    <Check className="size-4" />
-                  </Button>
-                )}
+                <Button size="icon" variant="ghost" onClick={() => markRead(n.id)} title="Mark as read">
+                  <Check className="size-4" />
+                </Button>
               </div>
             ))}
           </div>
         </Card>
       )}
 
-      <Card className="p-6">
+      <Card className="p-4 sm:p-6">
         <h2 className="font-display text-lg mb-1">Last 7 days</h2>
         <p className="text-sm text-muted-foreground mb-4">Daily average ({profile?.glucose_unit})</p>
-        <div className="h-56">
+        <div className="h-48 sm:h-56">
           <ResponsiveContainer>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-              <XAxis dataKey="day" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="avg" fill="var(--color-primary)" radius={[8, 8, 0, 0]} />
+            <BarChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.3} vertical={false} />
+              <XAxis
+                dataKey="day"
+                tick={{ fontSize: 11 }}
+                tickLine={false}
+                axisLine={false}
+                tickMargin={6}
+                interval={0}
+              />
+              <YAxis width={30} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+              <Tooltip cursor={{ fill: "var(--color-muted)", opacity: 0.5 }} />
+              <Bar dataKey="avg" fill="var(--color-primary)" radius={[8, 8, 0, 0]} maxBarSize={40} />
             </BarChart>
           </ResponsiveContainer>
         </div>

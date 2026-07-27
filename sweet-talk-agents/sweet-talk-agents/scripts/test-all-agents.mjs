@@ -162,7 +162,7 @@ async function testGatekeeper() {
       glucose_unit: 'mmol/L',
       foods_eaten: 'oats',
       snacks: 'none',
-      comments: 'feeling fine',
+      comments: 'gk-test entry - delete me',
       logged_at: 'this morning',
     });
     const prompt = `userId: ${USER_ID}\nyes`;
@@ -172,6 +172,8 @@ async function testGatekeeper() {
       { name: 'Save or confirm handled', pass: /saved|logged|confirm|discard|no problem/i.test(r.text) },
     ]);
     cases.push({ useCase: 'Confirmation reply ("yes")', response: r.text.slice(0, 500), error: r.error, ...s });
+    // "yes" saves a real row — clean it up so the suite is non-destructive.
+    await supabase.from('glucose_logs').delete().eq('user_id', USER_ID).eq('comments', 'gk-test entry - delete me');
     await clearChatSession();
   }
 
@@ -616,7 +618,6 @@ const runners = [
   testNotification,
   testCaregiver,
   testFoodPhoto,
-  testWeather,
 ];
 
 for (const run of runners) {

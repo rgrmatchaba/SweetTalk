@@ -98,7 +98,7 @@ function CaregiverPage() {
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
-          Phone number is stored for future SMS/WhatsApp support — daily summaries are currently sent by email only.
+          Phone number is optional — daily summaries are currently sent by email only.
         </p>
         <div className="flex gap-2">
           <Button onClick={saveCaregiver}>Save caregiver details</Button>

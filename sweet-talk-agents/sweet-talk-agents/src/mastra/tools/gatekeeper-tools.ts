@@ -1,7 +1,8 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { supabase } from '../lib/supabase';
-import { callAgent } from '../lib/agent-call';
+import { callAgent, callAgentPreferToolResponse } from '../lib/agent-call';
+import { stripReasoningPreamble } from '../lib/strip-preamble';
 import { getOrCreateChatSession } from './shared-tools';
 import {
   executeConfirmCancel,
@@ -9,6 +10,7 @@ import {
   formatConfirmCardWithMarker,
   isCancelMessage,
   isConfirmMessage,
+  truncateAgentMessage,
 } from '../lib/logging-orchestration';
 
 // getUserProfileTool and getActiveLogTool now live in shared-tools.ts since
@@ -132,7 +134,8 @@ export const handoffToAgentTool = createTool({
     response: z.string().nullable(),
     note: z.string(),
   }),
-  execute: async ({ userId, intent, message, reason }, context) => {
+  execute: async ({ userId, intent, message: rawMessage, reason }, context) => {
+    const message = truncateAgentMessage(rawMessage);
     const session = await getOrCreateChatSession(userId);
     const pendingLog = (session.pending_log as Record<string, unknown>) ?? {};
     const flowStep = session.flow_step ?? null;
@@ -202,7 +205,18 @@ message: ${message}`;
       prompt = `userId: ${userId}\nmessage: ${message}`;
     }
 
-    const response = await callAgent(context.mastra, routedTo, prompt);
+    // For the extraction route, the authoritative reply is built in code by
+    // handoffToValidationTool — prefer that tool's response over the LLM's
+    // narrated text so reasoning preamble can never reach the user. Other
+    // routes (Q&A, Analysis) author their reply with the LLM; strip any
+    // leaked preamble from those.
+    const response =
+      routedTo === 'extraction-logging-agent'
+        ? await callAgentPreferToolResponse(context.mastra, routedTo, prompt, [
+            'handoffToValidationTool',
+            'handoff-to-validation',
+          ])
+        : stripReasoningPreamble(await callAgent(context.mastra, routedTo, prompt));
 
     return {
       intent,

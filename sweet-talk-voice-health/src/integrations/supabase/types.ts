@@ -83,6 +83,7 @@ export type Database = {
           glucose_value: number
           id: string
           logged_at: string
+          snacks: string | null
           user_id: string
         }
         Insert: {
@@ -94,6 +95,7 @@ export type Database = {
           glucose_value: number
           id?: string
           logged_at?: string
+          snacks?: string | null
           user_id: string
         }
         Update: {
@@ -105,6 +107,7 @@ export type Database = {
           glucose_value?: number
           id?: string
           logged_at?: string
+          snacks?: string | null
           user_id?: string
         }
         Relationships: []

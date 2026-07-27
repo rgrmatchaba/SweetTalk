@@ -1,9 +1,21 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, History, LineChart, User, FileDown, LogOut, Mic, HeartHandshake, MessageSquare } from "lucide-react";
+import {
+  LayoutDashboard,
+  History,
+  LineChart,
+  User,
+  FileDown,
+  LogOut,
+  MessageCircle,
+  HeartHandshake,
+  MessageSquare,
+  MoreHorizontal,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -15,8 +27,15 @@ const NAV = [
   { to: "/export", label: "Export", icon: FileDown },
 ] as const;
 
+/* Bottom navigation follows the 4-primary-destinations + "More" overflow
+   pattern; the remaining destinations live in a bottom sheet. */
+const MOBILE_PRIMARY_NAV = NAV.slice(0, 4);
+const MOBILE_OVERFLOW_NAV = NAV.slice(4);
+
 export function AppShell({ children }: { children: ReactNode }) {
   const { location } = useRouterState();
+  const [moreOpen, setMoreOpen] = useState(false);
+  const overflowActive = MOBILE_OVERFLOW_NAV.some((n) => location.pathname === n.to);
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -24,11 +43,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       <aside className="hidden md:flex w-64 shrink-0 flex-col border-r bg-sidebar p-5">
         <div className="flex items-center gap-2 mb-8">
           <div className="size-9 rounded-xl bg-primary text-primary-foreground grid place-items-center">
-            <Mic className="size-5" />
+            <MessageCircle className="size-5" />
           </div>
           <div>
             <h1 className="font-display text-xl text-sidebar-foreground leading-none">Sweet Talk</h1>
-            <p className="text-xs text-muted-foreground mt-1">Voice glucose log</p>
+            <p className="text-xs text-muted-foreground mt-1">Your sugar diary</p>
           </div>
         </div>
         <nav className="flex flex-col gap-1 flex-1">
@@ -65,11 +84,16 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="md:hidden fixed top-0 inset-x-0 z-20 bg-sidebar/95 backdrop-blur border-b px-4 h-14 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="size-8 rounded-lg bg-primary text-primary-foreground grid place-items-center">
-            <Mic className="size-4" />
+            <MessageCircle className="size-4" />
           </div>
-          <h1 className="font-display text-lg">Sweet Talk</h1>
+          <h1 className="font-display text-lg text-sidebar-foreground">Sweet Talk</h1>
         </div>
-        <Button variant="ghost" size="icon" onClick={() => supabase.auth.signOut()}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => supabase.auth.signOut()}
+          className="text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+        >
           <LogOut className="size-4" />
         </Button>
       </div>
@@ -78,9 +102,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         {children}
       </main>
 
-      {/* Mobile bottom nav */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-20 bg-sidebar border-t flex justify-around py-2">
-        {NAV.map((n) => {
+      {/* Mobile bottom nav — 4 primary destinations + More overflow sheet */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-20 bg-sidebar border-t flex justify-around py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+        {MOBILE_PRIMARY_NAV.map((n) => {
           const active = location.pathname === n.to;
           return (
             <Link
@@ -96,7 +120,54 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
           );
         })}
+        <button
+          onClick={() => setMoreOpen(true)}
+          className={cn(
+            "flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg text-[11px]",
+            overflowActive || moreOpen ? "text-primary" : "text-muted-foreground",
+          )}
+        >
+          <MoreHorizontal className="size-5" />
+          More
+        </button>
       </nav>
+
+      <Drawer open={moreOpen} onOpenChange={setMoreOpen}>
+        <DrawerContent className="md:hidden">
+          <DrawerTitle className="sr-only">More navigation options</DrawerTitle>
+          <nav className="grid gap-1 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            {MOBILE_OVERFLOW_NAV.map((n) => {
+              const active = location.pathname === n.to;
+              return (
+                <Link
+                  key={n.to}
+                  to={n.to}
+                  onClick={() => setMoreOpen(false)}
+                  className={cn(
+                    "flex items-center gap-3 rounded-xl px-4 py-3.5 text-sm transition-colors",
+                    active
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                      : "text-foreground/80 hover:bg-muted",
+                  )}
+                >
+                  <n.icon className="size-5" />
+                  {n.label}
+                </Link>
+              );
+            })}
+            <button
+              onClick={() => {
+                setMoreOpen(false);
+                supabase.auth.signOut();
+              }}
+              className="flex items-center gap-3 rounded-xl px-4 py-3.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <LogOut className="size-5" />
+              Sign out
+            </button>
+          </nav>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }

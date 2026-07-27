@@ -31,8 +31,12 @@ EXTRACTION — extract only what appears in message:
 - glucose_unit: from profile
 - foods_eaten: meals/food/drinks if mentioned
 - snacks: "none" if not mentioned and user discussed food; null otherwise
-- comments: feelings/symptoms if mentioned
-- logged_at: time phrase if mentioned (e.g. "1pm", "this morning"); null if not stated
+- comments: feelings/symptoms if mentioned — ANY physical or emotional state counts
+  (e.g. "slight headache", "feeling fine", "a bit shaky", "no complaints")
+- logged_at: the user's time phrase VERBATIM (e.g. "at 10am", "this morning", "just now",
+  "yesterday at 3am", "last Monday at 2pm"); null if not stated.
+  NEVER convert time phrases to dates or ISO timestamps — you do not know today's date and
+  will get it wrong. Copy the words the user used; the orchestration layer resolves them.
 
 Leave any unmentioned field null. The orchestration layer merges with pendingLog.`,
   model: getDefaultModel(),

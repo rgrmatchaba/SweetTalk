@@ -38,3 +38,7 @@ test-results/
 
 # Logs
 *.log
+
+# Scratch / local tooling
+tmp/
+.claude/
