@@ -18,7 +18,7 @@ services:
     rootDir: sweet-talk-agents/sweet-talk-agents
     buildCommand: npm install && npm run build
     startCommand: npm run start
-    healthCheckPath: /api
+    healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
         value: 22.13.0
