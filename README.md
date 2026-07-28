@@ -1,6 +1,6 @@
 # Sweet Talk
 
-**The sugar diary that talks like a person.**
+**The glucose diary that talks like a person.**
 
 Sweet Talk is an AI-powered glucose diary built for people living with diabetes in Africa. Log readings in a quick chat, get safety alerts when numbers are dangerous, keep family in the loop, and walk into clinic visits with a doctor-ready PDF — not a half-remembered notebook.
 
