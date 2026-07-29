@@ -126,12 +126,6 @@ export const handoffToAgentTool = createTool({
     userId: z.string().describe('The Supabase auth user id for the current user'),
     intent: z.enum(['LOGGING', 'CORRECTION', 'QA', 'ANALYSIS', 'EXPORT', 'SETTINGS']),
     message: z.string().describe('The original user message being routed'),
-    // Groq tool-calling often emits `null` for unused optionals; nullish accepts
-    // that instead of failing the whole generate with tool_use_failed.
-    reason: z
-      .string()
-      .nullish()
-      .describe('Brief note on why this intent was chosen. Omit or leave empty if none.'),
   }),
   outputSchema: z.object({
     intent: z.string(),
@@ -139,7 +133,7 @@ export const handoffToAgentTool = createTool({
     response: z.string().nullable(),
     note: z.string(),
   }),
-  execute: async ({ userId, intent, message: rawMessage, reason }, context) => {
+  execute: async ({ userId, intent, message: rawMessage }, context) => {
     const message = truncateAgentMessage(rawMessage);
     const session = await getOrCreateChatSession(userId);
     const pendingLog = (session.pending_log as Record<string, unknown>) ?? {};
@@ -187,7 +181,7 @@ export const handoffToAgentTool = createTool({
         intent,
         routedTo: intent === 'EXPORT' ? 'export-flow' : 'settings-flow',
         response: null,
-        note: `Routing decision recorded (reason: ${reason ?? 'n/a'}). The ${intent} flow isn't built yet — respond to the user as a helpful placeholder (acknowledge what you understood and say that part is coming soon).`,
+        note: `Routing decision recorded. The ${intent} flow isn't built yet — respond to the user as a helpful placeholder (acknowledge what you understood and say that part is coming soon).`,
       };
     }
 
