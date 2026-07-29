@@ -126,7 +126,12 @@ export const handoffToAgentTool = createTool({
     userId: z.string().describe('The Supabase auth user id for the current user'),
     intent: z.enum(['LOGGING', 'CORRECTION', 'QA', 'ANALYSIS', 'EXPORT', 'SETTINGS']),
     message: z.string().describe('The original user message being routed'),
-    reason: z.string().optional().describe('Brief note on why this intent was chosen'),
+    // Groq tool-calling often emits `null` for unused optionals; nullish accepts
+    // that instead of failing the whole generate with tool_use_failed.
+    reason: z
+      .string()
+      .nullish()
+      .describe('Brief note on why this intent was chosen. Omit or leave empty if none.'),
   }),
   outputSchema: z.object({
     intent: z.string(),

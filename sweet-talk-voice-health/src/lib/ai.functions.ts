@@ -92,6 +92,34 @@ function aiUnavailableHint(): string {
   return `Start Ollama and run: ollama pull ${process.env.OLLAMA_MODEL ?? "llama3.2"}`;
 }
 
+/** Render free tier cold-starts can take 30–60s; fail before the UI hangs forever. */
+const MASTRA_FETCH_TIMEOUT_MS = 55_000;
+
+async function mastraFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(MASTRA_FETCH_TIMEOUT_MS),
+    });
+  } catch (e) {
+    const timedOut =
+      (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError")) ||
+      (typeof DOMException !== "undefined" && e instanceof DOMException && e.name === "TimeoutError");
+    if (timedOut) {
+      throw new Error(
+        "The agents server timed out. On Render's free plan it may be waking up — wait ~30s and try again.",
+      );
+    }
+    throw e;
+  }
+}
+
+function mastraFailureHint(err: unknown): string {
+  const msg = err instanceof Error ? err.message : "Agent request failed";
+  if (/timed out|waking up/i.test(msg)) return msg;
+  return `${msg}. Is the Mastra agents server running?`;
+}
+
 const voiceEntrySchema = z.object({
   glucose_value: z.number(),
   foods_eaten: z.string(),
@@ -147,7 +175,7 @@ export const sweetTalkAgentChat = createServerFn({ method: "POST" })
     const message = data.message.length > 2000 ? `${data.message.slice(0, 2000)}…` : data.message;
     const prompt = `userId: ${userId}\n${message}`;
     try {
-      const res = await fetch(`${baseUrl}/api/agents/gatekeeper-agent/generate`, {
+      const res = await mastraFetch(`${baseUrl}/api/agents/gatekeeper-agent/generate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -175,8 +203,7 @@ export const sweetTalkAgentChat = createServerFn({ method: "POST" })
       const text = extractHandoffResponse(json) ?? stripAgentPreamble(raw);
       return { text };
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Agent request failed";
-      throw new Error(`${msg}. Is the Mastra agents server running (npm run dev in sweet-talk-agents/sweet-talk-agents)?`);
+      throw new Error(mastraFailureHint(e));
     }
   });
 
@@ -193,7 +220,7 @@ export const sweetTalkQAChat = createServerFn({ method: "POST" })
     const userId = context.userId;
     const prompt = `userId: ${userId}\n${data.message}`;
     try {
-      const res = await fetch(`${baseUrl}/api/agents/qa-agent/generate`, {
+      const res = await mastraFetch(`${baseUrl}/api/agents/qa-agent/generate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -219,8 +246,7 @@ export const sweetTalkQAChat = createServerFn({ method: "POST" })
       // The Q&A agent narrates tool plans too ("I'll retrieve your last reading…").
       return { text: stripAgentPreamble(raw) };
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Agent request failed";
-      throw new Error(`${msg}. Is the Mastra agents server running (npm run dev in sweet-talk-agents/sweet-talk-agents)?`);
+      throw new Error(mastraFailureHint(e));
     }
   });
 
@@ -395,7 +421,7 @@ export const analyseGlucose = createServerFn({ method: "POST" })
     const userId = context.userId;
     const prompt = `userId: ${userId}\nAnalyse my glucose patterns from ${data.from} to ${data.to}.`;
     try {
-      const res = await fetch(`${baseUrl}/api/agents/analysis-agent/generate`, {
+      const res = await mastraFetch(`${baseUrl}/api/agents/analysis-agent/generate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -420,8 +446,7 @@ export const analyseGlucose = createServerFn({ method: "POST" })
       }
       return { narrative: stripAgentPreamble(raw) };
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Analysis request failed";
-      throw new Error(`${msg}. Is the Mastra agents server running (npm run dev in sweet-talk-agents/sweet-talk-agents)?`);
+      throw new Error(mastraFailureHint(e));
     }
   });
 

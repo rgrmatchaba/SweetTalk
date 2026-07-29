@@ -149,6 +149,7 @@ export function ChatAgent() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [waitingHint, setWaitingHint] = useState("thinking...");
   const [clearing, setClearing] = useState(false);
   // Track which confirm-card message IDs have been acted on (Save or Cancel)
   const [actedCards, setActedCards] = useState<Set<string>>(new Set());
@@ -270,6 +271,11 @@ export function ChatAgent() {
   const sendText = async (text: string) => {
     if (!sessionId || sending) return;
     setSending(true);
+    setWaitingHint("thinking...");
+    const hintTimer = window.setTimeout(
+      () => setWaitingHint("Waking the agent — first reply can take up to a minute…"),
+      8_000,
+    );
     try {
       await persistMessage(sessionId, "user", text);
       const result = await sendToAgent({ data: { message: text, threadId } });
@@ -281,7 +287,9 @@ export function ChatAgent() {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Something went wrong");
     } finally {
+      window.clearTimeout(hintTimer);
       setSending(false);
+      setWaitingHint("thinking...");
     }
   };
 
@@ -373,7 +381,7 @@ export function ChatAgent() {
         {sending && (
           <div className="flex justify-start">
             <div className="rounded-2xl px-4 py-2 text-sm bg-muted flex items-center gap-2">
-              <Loader2 className="size-3 animate-spin" /> thinking...
+              <Loader2 className="size-3 animate-spin" /> {waitingHint}
             </div>
           </div>
         )}

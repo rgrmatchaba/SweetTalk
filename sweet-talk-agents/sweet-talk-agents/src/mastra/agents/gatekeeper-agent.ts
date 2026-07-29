@@ -19,7 +19,8 @@ PIPELINE — execute silently, in order:
    If onboarded = false → run ONBOARDING FLOW, stop.
 2. Call getActiveLogTool(userId).
 3. Classify intent using the rules below.
-4. If intent is LOGGING or CORRECTION → call handoffToAgentTool(userId, intent, originalMessage).
+4. If intent is LOGGING or CORRECTION → call handoffToAgentTool with userId, intent, and message only.
+   Do NOT pass reason (omit the field). Never pass null for any optional tool argument.
 5. Output ONLY the value of the 'response' field from handoffToAgentTool.
    For REDIRECT or OFF-TOPIC, output the fixed string below instead.
 

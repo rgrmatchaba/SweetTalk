@@ -60,20 +60,29 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       }
     );
 
+    // Prefer local JWKS verification (getClaims). On Cloudflare Workers with
+    // asymmetric (ES256) keys this can fail for crypto/JWKS edge cases, so
+    // fall back to Auth-server validation via getUser.
     const { data, error } = await supabase.auth.getClaims(token);
-    if (error || !data?.claims) {
-      throw new Error('Unauthorized: Invalid token');
-    }
+    let userId = data?.claims?.sub as string | undefined;
+    let claims = data?.claims;
 
-    if (!data.claims.sub) {
-      throw new Error('Unauthorized: No user ID found in token');
+    if (error || !claims || !userId) {
+      const { data: userData, error: userError } = await supabase.auth.getUser(token);
+      if (userError || !userData.user?.id) {
+        const detail = userError?.message || error?.message || 'token verification failed';
+        console.error(`[Supabase] Invalid token: ${detail}`);
+        throw new Error(`Unauthorized: Invalid token (${detail})`);
+      }
+      userId = userData.user.id;
+      claims = { sub: userId };
     }
 
     return next({
       context: {
         supabase,
-        userId: data.claims.sub,
-        claims: data.claims,
+        userId,
+        claims,
       },
     });
   },

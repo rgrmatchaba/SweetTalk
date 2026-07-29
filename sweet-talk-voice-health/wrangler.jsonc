@@ -1,16 +1,14 @@
 {
   // Cloudflare Workers config for deploying the Sweet Talk frontend.
-  // The project's vite config (@lovable.dev/vite-tanstack-config) builds with
-  // Nitro's "cloudflare" preset, which emits a Worker entry + static assets
-  // under .output/ when you run `npm run build`.
+  // vite.config.ts enables Nitro (`nitro: { preset: "cloudflare-module" }`),
+  // which emits the Worker entry + static assets under .output/ on `npm run build`.
   //
   // Deploy with: npx wrangler deploy
-  // (run `npm run build` first, or let wrangler trigger it via `build.command`)
+  // (runs `npm run build` via build.command below, then uploads .output/)
   //
-  // NOTE: After your first build, check the paths below against what Nitro
-  // actually generated in `.output/` (it sometimes writes its own
-  // wrangler.json into .output/server/ — if so, prefer that one or merge
-  // these settings into it).
+  // After build, Nitro also writes `.output/server/wrangler.json` — if Wrangler
+  // complains about paths, deploy with:
+  //   npx wrangler deploy -c .output/server/wrangler.json
   "name": "sweet-talk-voice-health",
   "compatibility_date": "2026-01-01",
   "compatibility_flags": ["nodejs_compat"],
@@ -23,6 +21,8 @@
     "command": "npm run build"
   },
   "vars": {
-    "MASTRA_API_URL": "https://your-mastra-backend.onrender.com"
+    "MASTRA_API_URL": "https://sweet-talk-agents.onrender.com",
+    "LLM_PROVIDER": "groq",
+    "GROQ_MODEL": "llama-3.3-70b-versatile"
   }
 }
