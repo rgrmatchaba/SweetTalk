@@ -19,6 +19,13 @@ test("auth page renders sign in form", async ({ page }) => {
 
 test("can toggle between sign in and sign up", async ({ page }) => {
   await page.goto("/auth");
-  await page.getByRole("button", { name: /need an account/i }).click();
-  await expect(page.getByRole("button", { name: /create account/i })).toBeVisible();
+  await page.getByRole("tab", { name: /sign up/i }).click();
+  await expect(page.getByRole("heading", { name: /start your sugar diary/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /create free account/i })).toBeVisible();
+
+  // Typing must not flip the mode pill back to Sign in
+  await page.getByLabel("Email").fill("newuser@example.com");
+  await page.getByLabel("Password").fill("secret12");
+  await expect(page.getByRole("tab", { name: /sign up/i })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("button", { name: /create free account/i })).toBeVisible();
 });

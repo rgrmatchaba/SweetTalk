@@ -217,18 +217,31 @@ function AuthPage() {
           className="w-full"
         >
           <div className="rounded-3xl border border-white/10 bg-[#143528] p-8 shadow-[0_50px_80px_-30px_rgba(0,0,0,0.6)]">
-            {/* mode toggle */}
-            <div className="relative mb-7 grid grid-cols-2 rounded-full bg-[#0C231B] p-1">
+            {/* mode toggle — position via left + x only; never use layout here.
+                layout + percentage x re-projects on any reflow (keyboard, autofill,
+                AnimatePresence sibling), which snaps the pill back to Sign in. */}
+            <div
+              className="relative mb-7 grid grid-cols-2 rounded-full bg-[#0C231B] p-1"
+              role="tablist"
+              aria-label="Account mode"
+            >
               <motion.div
-                layout
-                className="absolute inset-y-1 w-[calc(50%-4px)] rounded-full bg-[#E8A33D]"
-                animate={{ x: mode === "signin" ? 4 : "calc(100% + 4px)" }}
-                transition={{ type: "spring", stiffness: 400, damping: 32 }}
+                aria-hidden
+                className="absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-full bg-[#E8A33D]"
+                initial={false}
+                animate={{ x: mode === "signin" ? "0%" : "100%" }}
+                transition={
+                  reduce
+                    ? { duration: 0 }
+                    : { type: "spring", stiffness: 400, damping: 32 }
+                }
               />
               {(["signin", "signup"] as const).map((m) => (
                 <button
                   key={m}
                   type="button"
+                  role="tab"
+                  aria-selected={mode === m}
                   onClick={() => setMode(m)}
                   className={`relative z-10 rounded-full py-2 text-sm font-bold transition-colors ${
                     mode === m ? "text-[#0C231B]" : "text-[#A8C0B5] hover:text-[#F6F3EC]"
@@ -239,7 +252,9 @@ function AuthPage() {
               ))}
             </div>
 
-            <AnimatePresence mode="wait">
+            {/* Copy/CTA animate on mode change; inputs stay mounted so typing
+                never remounts the form or steals focus. */}
+            <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key={mode}
                 initial={reduce ? false : { opacity: 0, y: 12 }}
@@ -251,83 +266,83 @@ function AuthPage() {
                   {c.heading}
                 </h2>
                 <p className="mt-2 text-sm leading-relaxed text-[#A8C0B5]">{c.sub}</p>
-
-                <form onSubmit={submit} className="mt-6 space-y-4">
-                  <div>
-                    <label htmlFor="email" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[#A8C0B5]">
-                      Email
-                    </label>
-                    <div className="relative">
-                      <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A8C0B5]" />
-                      <input
-                        id="email"
-                        type="email"
-                        required
-                        autoComplete="email"
-                        placeholder="you@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="w-full rounded-xl border border-white/10 bg-[#0C231B] py-3 pl-10 pr-4 text-sm text-[#F6F3EC] placeholder:text-[#A8C0B5]/50 outline-none transition focus:border-[#E8A33D]/60 focus:ring-2 focus:ring-[#E8A33D]/20"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label htmlFor="password" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[#A8C0B5]">
-                      Password
-                    </label>
-                    <div className="relative">
-                      <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A8C0B5]" />
-                      <input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        required
-                        minLength={6}
-                        autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                        placeholder={mode === "signup" ? "At least 6 characters" : "Your password"}
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="w-full rounded-xl border border-white/10 bg-[#0C231B] py-3 pl-10 pr-11 text-sm text-[#F6F3EC] placeholder:text-[#A8C0B5]/50 outline-none transition focus:border-[#E8A33D]/60 focus:ring-2 focus:ring-[#E8A33D]/20"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((v) => !v)}
-                        aria-label={showPassword ? "Hide password" : "Show password"}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-[#A8C0B5] transition hover:text-[#F6F3EC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8A33D]/40"
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <motion.button
-                    type="submit"
-                    disabled={loading}
-                    whileTap={reduce ? undefined : { scale: 0.98 }}
-                    className="group mt-2 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#E8A33D] px-6 py-3.5 text-sm font-bold text-[#0C231B] shadow-xl shadow-[#E8A33D]/20 transition hover:bg-[#F2B658] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {loading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        {c.button}
-                        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                      </>
-                    )}
-                  </motion.button>
-                </form>
-
-                <p className="mt-5 text-center text-sm text-[#A8C0B5]">
-                  {c.switchPrompt}{" "}
-                  <button
-                    type="button"
-                    onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-                    className="font-semibold text-[#E8A33D] transition hover:text-[#F2B658]"
-                  >
-                    {c.switchAction}
-                  </button>
-                </p>
               </motion.div>
             </AnimatePresence>
+
+            <form onSubmit={submit} className="mt-6 space-y-4">
+              <div>
+                <label htmlFor="email" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[#A8C0B5]">
+                  Email
+                </label>
+                <div className="relative">
+                  <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A8C0B5]" />
+                  <input
+                    id="email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-xl border border-white/10 bg-[#0C231B] py-3 pl-10 pr-4 text-sm text-[#F6F3EC] placeholder:text-[#A8C0B5]/50 outline-none transition focus:border-[#E8A33D]/60 focus:ring-2 focus:ring-[#E8A33D]/20"
+                  />
+                </div>
+              </div>
+              <div>
+                <label htmlFor="password" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[#A8C0B5]">
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#A8C0B5]" />
+                  <input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    minLength={6}
+                    autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                    placeholder={mode === "signup" ? "At least 6 characters" : "Your password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full rounded-xl border border-white/10 bg-[#0C231B] py-3 pl-10 pr-11 text-sm text-[#F6F3EC] placeholder:text-[#A8C0B5]/50 outline-none transition focus:border-[#E8A33D]/60 focus:ring-2 focus:ring-[#E8A33D]/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-[#A8C0B5] transition hover:text-[#F6F3EC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E8A33D]/40"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <motion.button
+                type="submit"
+                disabled={loading}
+                whileTap={reduce ? undefined : { scale: 0.98 }}
+                className="group mt-2 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#E8A33D] px-6 py-3.5 text-sm font-bold text-[#0C231B] shadow-xl shadow-[#E8A33D]/20 transition hover:bg-[#F2B658] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    {c.button}
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </>
+                )}
+              </motion.button>
+            </form>
+
+            <p className="mt-5 text-center text-sm text-[#A8C0B5]">
+              {c.switchPrompt}{" "}
+              <button
+                type="button"
+                onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+                className="font-semibold text-[#E8A33D] transition hover:text-[#F2B658]"
+              >
+                {c.switchAction}
+              </button>
+            </p>
           </div>
 
           <motion.p

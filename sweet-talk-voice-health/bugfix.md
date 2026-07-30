@@ -62,6 +62,14 @@ _None yet_
 
 ## Fixed
 
+### Sign-up toggle snaps back to Sign in while typing
+**File(s):** `src/routes/auth.tsx`
+**Symptom:** On the auth page, switching to Sign up then typing email/password made the mode toggle slide back to Sign in.
+**Root cause:** The honey pill used Framer Motion `layout` together with a percentage `x` animation. Any reflow while typing (keyboard, autofill UI, sibling AnimatePresence) re-projected layout and snapped the pill to the Sign-in position. The form was also inside a `key={mode}` AnimatePresence, so a mode flicker would remount inputs mid-typing.
+**Fix:** Removed `layout` from the pill; position it with stable `left` + `x: 0% | 100%`. Kept email/password/submit outside the mode-keyed AnimatePresence so typing never remounts the form. Added a regression assertion in the auth e2e toggle test.
+
+---
+
 ### LLM references prior-session DB data as "you mentioned earlier" (hallucination)
 **File(s):** `src/components/chat-agent.tsx`
 **Symptom:** Bot said "you mentioned feeling drained after eating sweet potato" — sourced from a saved database record, not the current conversation.
