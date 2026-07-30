@@ -90,6 +90,42 @@ Download a clinical report with profile, meds, summary stats, notable highs/lows
 
 ---
 
+## Get it on your phone (PWA)
+
+Sweet Talk is a Progressive Web App — no App Store or Play Store needed. Open the live app, then install it to your home screen.
+
+**Live app:** [https://sweet-talk-voice-health.sweettalk.workers.dev](https://sweet-talk-voice-health.sweettalk.workers.dev)
+
+<p align="center">
+  <img src="docs/pwa-install-qr.png" alt="QR code — scan to open Sweet Talk on your phone" width="280" />
+  <br />
+  <em>Scan with your phone camera to open Sweet Talk</em>
+</p>
+
+### iPhone (Safari)
+
+1. Open the link above (or scan the QR) in **Safari** — Chrome on iOS won’t show the same install option
+2. Tap the **Share** button
+3. Tap **Add to Home Screen**
+4. Confirm **Add**
+
+Sweet Talk appears as its own icon and opens in standalone mode.
+
+### Android (Chrome)
+
+1. Open the link above (or scan the QR) in **Chrome**
+2. Tap the **⋮** menu
+3. Tap **Install app** or **Add to Home screen**
+4. Confirm
+
+### Tips
+
+- Sign in once after opening (same account as on desktop)
+- Chat and logging still need an internet connection after install
+- If you don’t see Install, wait for the page to finish loading, then try again
+
+---
+
 ## Tech stack
 
 | Layer | Tech |
