@@ -11,12 +11,22 @@ import { z } from "zod";
  *   "User is onboarded. No active log. Intent: LOGGING (glucose number 4.5).Got it — 4.5..."
  *   "This is a LOGGING intent. The user mentions a headache...Got it — ..."
  *
+ * Also strips Groq/Llama tool-call markup dumped as plain text:
+ *   `(function=getActiveLogTool>{"userId":"..."};</function>`
+ *
  * Strategy: repeatedly strip leading sentences that are clearly internal
  * reasoning (meta vocabulary, reasoning openers, or bare intent labels).
  * Sentence boundaries are ".", ":" or newline — but a "." or ":" followed by
  * a digit is treated as part of the sentence, so glucose values (4.5) and
  * times (09:00:00Z) are never cut in half.
  */
+const TOOL_CALL_MARKUP =
+  /(?:\(\s*)?<?\s*function\s*=\s*[A-Za-z0-9_-]+\s*[>,]\s*\{[\s\S]*?\}\s*;?\s*<\/\s*function\s*>/gi;
+
+function stripToolCallMarkup(text: string): string {
+  return text.replace(TOOL_CALL_MARKUP, " ").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 function stripAgentPreamble(text: string): string {
   const SENTENCE = /^\s*(?:[^.:\n]|\.(?=\d)|:(?=\d))+[.:\n]\s*/;
   // Vocabulary that only appears in leaked reasoning, never in real replies.
@@ -30,7 +40,7 @@ function stripAgentPreamble(text: string): string {
   // which the model emits with no sentence boundary before the real reply.
   const INTENT_LABEL = /^(?:LOGGING|CORRECTION|OFF-TOPIC|REDIRECT|ANALYSIS|QA)\b(?:\s*\([^)]*\))?[.:\s]*/;
 
-  let out = text;
+  let out = stripToolCallMarkup(text);
   for (let i = 0; i < 8; i++) {
     const label = out.match(INTENT_LABEL);
     if (label && label[0].length < out.length) {
@@ -46,6 +56,14 @@ function stripAgentPreamble(text: string): string {
     out = rest;
   }
   return out;
+}
+
+function sanitizeAgentReply(text: string): string {
+  const cleaned = stripAgentPreamble(text);
+  if (!cleaned || /function\s*=/i.test(cleaned)) {
+    throw new Error("The agent got stuck calling tools — please try that message again.");
+  }
+  return cleaned;
 }
 
 /**
@@ -199,8 +217,8 @@ export const sweetTalkAgentChat = createServerFn({ method: "POST" })
         throw new Error("Mastra agent returned an unexpected response shape");
       }
       // Prefer the deterministic handoff tool response; fall back to the LLM
-      // text with any leaked reasoning preamble stripped.
-      const text = extractHandoffResponse(json) ?? stripAgentPreamble(raw);
+      // text with any leaked reasoning / tool-call markup stripped.
+      const text = sanitizeAgentReply(extractHandoffResponse(json) ?? raw);
       return { text };
     } catch (e) {
       throw new Error(mastraFailureHint(e));
@@ -244,7 +262,7 @@ export const sweetTalkQAChat = createServerFn({ method: "POST" })
         throw new Error("Mastra agent returned an unexpected response shape");
       }
       // The Q&A agent narrates tool plans too ("I'll retrieve your last reading…").
-      return { text: stripAgentPreamble(raw) };
+      return { text: sanitizeAgentReply(raw) };
     } catch (e) {
       throw new Error(mastraFailureHint(e));
     }
@@ -444,7 +462,7 @@ export const analyseGlucose = createServerFn({ method: "POST" })
       if (typeof raw !== "string") {
         throw new Error("Mastra agent returned an unexpected response shape");
       }
-      return { narrative: stripAgentPreamble(raw) };
+      return { narrative: sanitizeAgentReply(raw) };
     } catch (e) {
       throw new Error(mastraFailureHint(e));
     }

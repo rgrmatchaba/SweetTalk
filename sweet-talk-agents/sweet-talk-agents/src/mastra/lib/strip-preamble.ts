@@ -4,6 +4,10 @@
  *   "Now I'll call handoffToValidationTool with the extracted entry:Got it — 6.2..."
  *   "User is onboarded. No active log. Intent: LOGGING (glucose number 4.5).Got it — ..."
  *
+ * Also strips Groq/Llama tool-call markup that weak models dump as plain text:
+ *   `(function=getActiveLogTool>{"userId":"..."};</function>`
+ *   `<function=handoffToAgentTool,{...}</function>`
+ *
  * Mirrors stripAgentPreamble in sweet-talk-voice-health/src/lib/ai.functions.ts —
  * keep the two in sync. Strategy: repeatedly strip leading sentences that are
  * clearly internal reasoning (meta vocabulary, reasoning openers, or bare intent
@@ -26,8 +30,16 @@ const STARTER =
 // Consumes an attached parenthetical, e.g. `LOGGING (food item mentioned, ...)`.
 const INTENT_LABEL = /^(?:LOGGING|CORRECTION|OFF-TOPIC|REDIRECT|ANALYSIS|QA)\b(?:\s*\([^)]*\))?[.:\s]*/;
 
+// Groq/Llama sometimes emit tool calls as plain text instead of structured calls.
+const TOOL_CALL_MARKUP =
+  /(?:\(\s*)?<?\s*function\s*=\s*[A-Za-z0-9_-]+\s*[>,]\s*\{[\s\S]*?\}\s*;?\s*<\/\s*function\s*>/gi;
+
+export function stripToolCallMarkup(text: string): string {
+  return text.replace(TOOL_CALL_MARKUP, ' ').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 export function stripReasoningPreamble(text: string): string {
-  let out = text;
+  let out = stripToolCallMarkup(text);
   for (let i = 0; i < 8; i++) {
     const label = out.match(INTENT_LABEL);
     if (label && label[0].length < out.length) {
