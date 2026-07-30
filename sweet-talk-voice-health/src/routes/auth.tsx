@@ -5,6 +5,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Mail,
   Lock,
   Eye,
@@ -74,10 +82,19 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [signupConfirmOpen, setSignupConfirmOpen] = useState(false);
+  const [pendingConfirmEmail, setPendingConfirmEmail] = useState("");
 
   useEffect(() => {
     if (user) navigate({ to: "/dashboard", replace: true });
   }, [user, navigate]);
+
+  const continueToSignIn = () => {
+    setSignupConfirmOpen(false);
+    setMode("signin");
+    setPassword("");
+    setShowPassword(false);
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,10 +104,11 @@ function AuthPage() {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin },
+          options: { emailRedirectTo: `${window.location.origin}/auth` },
         });
         if (error) throw error;
-        toast.success("Account created! Welcome to Sweet Talk.");
+        setPendingConfirmEmail(email.trim());
+        setSignupConfirmOpen(true);
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -355,6 +373,54 @@ function AuthPage() {
           </motion.p>
         </motion.div>
       </main>
+
+      <Dialog
+        open={signupConfirmOpen}
+        onOpenChange={(open) => {
+          if (!open) continueToSignIn();
+        }}
+      >
+        <DialogContent className="border-white/10 bg-[#143528] text-[#F6F3EC] sm:rounded-3xl sm:max-w-md [&_[data-slot=dialog-close],&>button.absolute]:text-[#A8C0B5] [&_>button.absolute]:hover:text-[#F6F3EC] [&_>button.absolute]:ring-[#E8A33D]/40">
+          <DialogHeader className="space-y-3 text-center sm:text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#E8A33D]/15">
+              <Mail className="h-5 w-5 text-[#E8A33D]" />
+            </div>
+            <DialogTitle className="text-xl font-extrabold tracking-tight text-[#F6F3EC]" style={display}>
+              Confirm your email to continue
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-3 text-sm leading-relaxed text-[#A8C0B5]">
+                <p>
+                  Your Sweet Talk account has been created successfully.
+                </p>
+                <p>
+                  Please check your inbox
+                  {pendingConfirmEmail ? (
+                    <>
+                      {" "}
+                      at <span className="font-semibold text-[#EDE7D8]">{pendingConfirmEmail}</span>
+                    </>
+                  ) : null}{" "}
+                  and follow the confirmation link we sent you to activate your account.
+                </p>
+                <p>
+                  Once confirmed, you may sign in and begin logging your readings.
+                </p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-2 sm:justify-center">
+            <button
+              type="button"
+              onClick={continueToSignIn}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#E8A33D] px-6 py-3.5 text-sm font-bold text-[#0C231B] transition hover:bg-[#F2B658] sm:w-auto sm:min-w-[220px]"
+            >
+              Continue to sign in
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
