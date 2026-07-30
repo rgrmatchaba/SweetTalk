@@ -421,7 +421,7 @@ const pains = [
   },
   {
     icon: Wallet,
-    stat: "R300+/month",
+    stat: "$15+/month",
     title: "Expensive strips, wasted data",
     body:
       "Every test strip costs real money. But the numbers they produce go nowhere — no trends, no patterns, no answer to \"what does sadza actually do to my sugar?\" You pay for the data and then throw it away.",
