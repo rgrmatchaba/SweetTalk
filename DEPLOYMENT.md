@@ -43,9 +43,12 @@ not for guaranteed long-term memory.
    npm install
    npm run build
    ```
-4. Check what Nitro generated under `.output/` — if it created its own
-   `wrangler.json` inside `.output/server/`, compare it against the root
-   `wrangler.jsonc` and adjust paths if they differ.
+   `vite.config.ts` must have `nitro: { preset: "cloudflare-module" }` so the
+   build emits `.output/server/index.mjs` (without it, Wrangler fails looking
+   for that file).
+4. Confirm `.output/server/index.mjs` exists. Nitro also writes
+   `.output/server/wrangler.json` — if the root config paths disagree, deploy
+   with `npx wrangler deploy -c .output/server/wrangler.json`.
 5. Set secrets (these should NOT go in `wrangler.jsonc` since that file is
    committed to git):
    ```
@@ -86,9 +89,12 @@ over to Groq's free OpenAI-compatible endpoint — no Anthropic billing.
 
 ## Notes & future improvements
 
-- **Cold starts**: Render free services sleep when idle. For a "glimpse" demo
-  this is acceptable; if it's annoying, a free uptime pinger (e.g.
-  UptimeRobot hitting `/api/agents` every 10 min) keeps it warm.
+- **Cold starts**: Render free services sleep after ~15 min idle (first request
+  then takes 30–60s). This repo includes
+  [`.github/workflows/keep-alive.yml`](.github/workflows/keep-alive.yml), which
+  pings `/health` every 10 minutes so the agents service stays warm. Enable
+  Actions on the GitHub repo (and leave the default URL, or set repo variable
+  `MASTRA_KEEPALIVE_URL`). You can also use an external pinger like UptimeRobot.
 - **Persistent memory**: `mastra.db` (LibSQL) and the DuckDB observability
   store are local files on Render's ephemeral disk. They survive while the
   instance is running but can reset on redeploy. If long-term memory across
