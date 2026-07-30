@@ -687,7 +687,7 @@ function Family() {
 const tiers = [
   {
     name: "Free",
-    price: "R0",
+    price: "$0",
     cadence: "forever",
     blurb: "Start today. No card, no catch.",
     features: [
@@ -701,8 +701,8 @@ const tiers = [
   },
   {
     name: "Premium",
-    price: "R49",
-    cadence: "per month · ≈ $3 / KSh 300 / ₦2,000",
+    price: "$5",
+    cadence: "per month",
     blurb: "Unlimited everything, for less than a week of test strips.",
     features: [
       "Unlimited chat logging",
@@ -716,7 +716,7 @@ const tiers = [
   },
   {
     name: "Family",
-    price: "$7.99",
+    price: "$10",
     cadence: "per month, billed anywhere in the world",
     blurb: "You pay from abroad. They use everything free at home.",
     features: [

@@ -7,6 +7,11 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
+  // Force Nitro on local/CI builds (Lovable only enables it in its sandbox).
+  // Produces the Cloudflare Worker entry Wrangler expects under .output/.
+  nitro: {
+    preset: "cloudflare-module",
+  },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
